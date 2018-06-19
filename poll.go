@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"sync"
 
 	"github.com/GFG/grpc-resolver/marathon"
 
@@ -18,6 +19,7 @@ type poll struct {
 	label      string
 	appID      string
 	portIndex  int64
+	lock       *sync.RWMutex
 	probes     map[string]*Probe
 	marathon   *marathon.Client
 	updates    chan []*marathon.Task
@@ -59,6 +61,7 @@ func newPoll(label string, m *marathon.Client) (*poll, error) {
 		label:      label,
 		portIndex:  portIndex,
 		appID:      apps[0].ID,
+		lock:       new(sync.RWMutex),
 		probes:     make(map[string]*Probe),
 		updates:    make(chan []*marathon.Task, 0),
 		unregister: make(chan string, 0),
@@ -100,11 +103,13 @@ func (p *poll) Next() ([]*naming.Update, error) {
 			}
 
 			for _, task := range tasks {
+				p.lock.RLock()
 				if _, ok := p.probes[task.Addr(p.portIndex)]; ok {
 					// If the task is already registered,
 					// there is nothing to do.
 					continue
 				}
+				p.lock.RUnlock()
 
 				go p.processTask(task)
 
@@ -123,7 +128,9 @@ func (p *poll) Next() ([]*naming.Update, error) {
 				return nil, errors.New("poller unrecoverable")
 			}
 
+			p.lock.Lock()
 			delete(p.probes, addr)
+			p.lock.Unlock()
 
 			ups = append(ups, &naming.Update{
 				Addr: addr,
@@ -145,7 +152,9 @@ func (p *poll) processTask(task *marathon.Task) {
 		return
 	}
 
+	p.lock.Lock()
 	p.probes[probe.addr] = probe
+	p.lock.Unlock()
 
 	out := probe.exec()
 

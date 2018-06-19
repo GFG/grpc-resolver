@@ -1,4 +1,7 @@
-# Resolver
+# grpc-resolver
+
+This is a fork from https://github.com/eddyzags/resolver including some bug
+fixes and updates.
 
 ## Installation
 

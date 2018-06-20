@@ -107,6 +107,7 @@ func (p *poll) Next() ([]*naming.Update, error) {
 				if _, ok := p.probes[task.Addr(p.portIndex)]; ok {
 					// If the task is already registered,
 					// there is nothing to do.
+					p.lock.RUnlock()
 					continue
 				}
 				p.lock.RUnlock()
